@@ -354,7 +354,7 @@
           </div>
         </div>
       </div>
-      <div style="font-size:12px;color:var(--text3);margin-top:8px;">⚠️ 起始時間可直接貼上 DD373 時間戳格式（如 2026-03-26 01:22:07）；結束時間留白 = 自動使用當下時間</div>
+      <div style="font-size:12px;color:var(--text3);margin-top:8px;">⚠️ 起始時間可直接貼上 DD373 時間戳格式（如 2026-03-26 01:22:07）；結束時間留白，按「載入並結算」時會自動填入當下時間並鎖定，確保多次計算結果一致</div>
     </div>
 
     <!-- 比例設定 -->
@@ -362,8 +362,8 @@
       <div class="card-title">💱 比例設定</div>
       <div class="form-row" style="gap:10px;align-items:flex-end;">
         <div class="form-group">
-          <label>台銀匯率（基準）</label>
-          <input type="number" id="baseRate" step="0.001" value="4.645" placeholder="預設 4.645"
+          <label>基準比例</label>
+          <input type="number" id="baseRate" step="0.001" value="4.692" placeholder="預設 4.692"
                  style="min-width:130px;" oninput="updateRateCalc()">
         </div>
         <div class="rate-op">×</div>
@@ -379,7 +379,7 @@
         </div>
       </div>
       <div style="font-size:12px;color:var(--text3);margin-top:10px;line-height:1.8;">
-        台銀匯率預設 <strong style="color:var(--text2);">4.645</strong> · 乘數預設 <strong style="color:var(--text2);">1.02</strong><br>
+        基準比例預設 <strong style="color:var(--text2);">4.692</strong> · 乘數預設 <strong style="color:var(--text2);">1.02</strong><br>
         比例 = 鑽石 ÷ 鑽石比例 ÷ 10000 &nbsp;·&nbsp; 台幣成本 = ROUND( 比例 × 10000 ÷ 鑽石比例 ) &nbsp;·&nbsp; 進貨價 = ROUND( 鑽石 × 鑽石比例 )
       </div>
     </div>
@@ -413,7 +413,7 @@
           <span style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
             <span id="rateUsed" class="rate-badge">鑽石比例 <span class="val">—</span></span>
             <button class="btn btn-sm btn-ghost" onclick="reCalc()">🔄 重新計算</button>
-            <button class="btn btn-sm btn-primary" onclick="exportCSV()">💾 匯出 CSV</button>
+            <button class="btn btn-sm btn-primary" onclick="exportGoogleSheets()">📊 匯出 Google 試算表</button>
           </span>
         </div>
         <div style="overflow-x:auto;">
@@ -548,20 +548,34 @@ function goStep(n) {
 }
 
 // ===================================================
+// 訂單成功狀態判斷（DD373 履約流程）
+// 支付成功 → 准备发货 → 发货完成 → 交易成功
+// 不納入：支付成功（剛付款，尚未發貨，可能取消）
+// 納入：准备发货 / 发货完成 / 交易成功（賣家已開始履約）
+// ===================================================
+function isSuccess(status) {
+  // 支付成功 = 剛付款尚未發貨，不納入（尚未履約，可能取消）
+  // 准备发货 = 賣家已開始處理，納入（幾乎確定完成）
+  // 发货完成 = 商品已送達遊戲帳號，納入
+  // 交易成功 = 買家確認完成，納入
+  return ['交易成功','发货完成','准备发货'].includes(status);
+}
+
+// ===================================================
 // 鑽石比例計算
 // ===================================================
 function getDiamondRate() {
   const b = parseFloat(document.getElementById('baseRate').value);
   const m = parseFloat(document.getElementById('rateMultiplier').value);
-  return (isNaN(b) ? 4.645 : b) * (isNaN(m) ? 1.02 : m);
+  return (isNaN(b) ? 4.692 : b) * (isNaN(m) ? 1.02 : m);
 }
 function updateRateCalc() {
   document.getElementById('calcRateDisplay').textContent = getDiamondRate().toFixed(3);
 }
 
-// 台幣成本格式：四捨五入到整數 + 千分位（1.5→2, 101.1→101）
+// 台幣成本格式：四捨五入到小數點後2位 + 千分位（5.733→5.73, 297.5→297.50）
 function fmtTWD(n) {
-  return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return Number(Math.round(n + 'e2') + 'e-2').toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
 // ===================================================
@@ -619,9 +633,7 @@ document.addEventListener('DOMContentLoaded', function() {
 function getTimeFilter() {
   const s = document.getElementById('startTime').value;
   const e = document.getElementById('endTime').value;
-  // 結束時間若留空，自動使用當下時間
-  const endDate = e ? parseInputDatetime(e) : new Date();
-  return { start: s ? parseInputDatetime(s) : null, end: endDate };
+  return { start: s ? parseInputDatetime(s) : null, end: e ? parseInputDatetime(e) : null };
 }
 function parseOrderDate(str) {
   if (!str) return null;
@@ -633,7 +645,7 @@ function applyTimeFilter(orders) {
   if (!start&&!end) return orders;
   return orders.filter(o=>{
     const d=parseOrderDate(o.date);
-    if (!d) return true;
+    if (!d) return false;  // 日期無法解析 → 排除（避免舊資料誤入時間範圍）
     if (start&&d<start) return false;
     if (end&&d>end) return false;
     return true;
@@ -660,9 +672,9 @@ function onPasteInput() {
   try {
     const arr=JSON.parse(raw);
     if (!Array.isArray(arr)) throw new Error('非陣列');
-    const success=arr.filter(o=>o.status==='交易成功').length;
+    const success=arr.filter(o=>isSuccess(o.status)).length;
     const cancel =arr.filter(o=>o.status==='交易取消').length;
-    const other  =arr.filter(o=>o.status!=='交易成功'&&o.status!=='交易取消').length;
+    const other  =arr.filter(o=>!isSuccess(o.status)&&o.status!=='交易取消').length;
     ta.className='paste-area valid';
     info.innerHTML=`<span style="color:var(--accent2);">✓ 共 ${arr.length} 筆</span>　`
       +`交易成功：<strong style="color:var(--accent2);">${success}</strong>　`
@@ -692,6 +704,13 @@ function loadFromPaste() {
   try {
     const raw=document.getElementById('pasteArea').value.trim();
     allOrders=JSON.parse(raw);
+    // 結束時間留空時，立刻鎖定為「此刻」並填入欄位，確保重新計算時不飄移
+    const endEl=document.getElementById('endTime');
+    if (!endEl.value) {
+      endEl.value=toLocalDatetimeStr(new Date());
+      endEl.style.borderColor='var(--accent)';
+      setTimeout(()=>{ endEl.style.borderColor=''; }, 3000);
+    }
     renderResults();
   } catch(e) {
     alert('資料格式錯誤：'+e.message);
@@ -708,11 +727,23 @@ function parseGoods(g) {
   const qm=g.match(/^(\d+\.?\d*)(萬|万)?/);
   let qty=0;
   if (qm) qty=Math.round(parseFloat(qm[1])*(qm[2]?10000:1));
-  const im=g.match(/商品类型[：:]\s*(.+?)(\s*$)/);
+
+  // 相容繁體/簡體：商品类型 / 商品類型
+  const im=g.match(/商品[类類]型[：:]\s*(.+?)(\s*$)/);
   const itemRaw=(im?.[1]||'').trim();
   const item=ITEM_TYPE_MAP[itemRaw]||itemRaw;
-  const rm=g.match(/游戏区服[：:]\s*(.+?)(?:\s+商品类型|$)/);
-  const parts=(rm?.[1]||'').trim().replace(/[：:]/g,'/').split('/').map(s=>s.trim()).filter(Boolean);
+
+  // 相容繁體/簡體：游戏区服 / 游戲区服 / 遊戲區服 等所有組合
+  const rm=g.match(/[游遊][戲戏][区區]服[：:]\s*(.+?)(?:\s+商品[类類]型|$)/);
+  let parts=(rm?.[1]||'').trim().replace(/[：:]/g,'/').split('/').map(s=>s.trim()).filter(Boolean);
+
+  // 相容空格分隔格式：「天堂 经典版/台服/天神宙斯」
+  // 此時 parts 只有 3 段，第 0 段內含空格（遊戲名＋版本）
+  if (parts.length===3 && parts[0].includes(' ')) {
+    const sub=parts[0].split(/\s+/);
+    parts=[...sub, ...parts.slice(1)];
+  }
+  // parts 預期格式：[遊戲名, 版本, 區服, 伺服器]  → 共 4 段
   return { qty, item, diamond, game: parts.slice(0,2).join(''), serverName: parts[3]||'' };
 }
 
@@ -737,7 +768,7 @@ function groupOrders(orders) {
 function renderResults() {
   const diamondRate=getDiamondRate();
   const filtered=applyTimeFilter(allOrders);
-  const successOrders=filtered.filter(o=>o.status==='交易成功');
+  const successOrders=filtered.filter(o=>isSuccess(o.status));
 
   // 時間提示
   const {start,end}=getTimeFilter();
@@ -772,10 +803,10 @@ function renderResults() {
   groupedData.forEach(g=>{
     // 比例 = 數量 ÷ 鑽石 ÷ 10000
     const ratio=g.qty/g.diamond/10000;
-    // 台幣成本 = 比例 × 10000 ÷ 鑽石比例
-    const twd=Math.round(ratio*10000/diamondRate);
-    // 進貨價 = 鑽石 × 鑽石比例
-    const cost=Math.round(g.diamond*diamondRate);
+    // 台幣成本 = 比例 × 10000 ÷ 鑽石比例（保留2位小數）
+    const twd=Number(Math.round(ratio*10000/diamondRate + 'e2') + 'e-2');
+    // 進貨價 = 鑽石 × 鑽石比例（保留2位小數）
+    const cost=Number(Math.round(g.diamond*diamondRate + 'e2') + 'e-2');
     totQty+=g.qty; totDia+=g.diamond; totTWD+=twd; totCost+=cost;
     const tr=document.createElement('tr');
     tr.innerHTML=`
@@ -809,14 +840,14 @@ function renderResults() {
   successOrders.forEach(o=>{
     const m=o.goods?.match(/=(\d+\.?\d*)元/);
     const dia=m?parseFloat(m[1]):0;
-    const goodsShort=(o.goods||'').split('游戏区服')[0].trim();
+    const goodsShort=(o.goods||'').split(/[游遊][戲戏][区區]服/)[0].trim();
     const tr2=document.createElement('tr');
     tr2.innerHTML=`
       <td class="td-mono" style="font-size:12px;">${o.date||'—'}</td>
       <td class="td-mono" style="font-size:11px;">${o.orderNo||'—'}</td>
       <td>${goodsShort}</td>
       <td class="td-right td-mono td-accent">${dia.toFixed(2)}</td>
-      <td><span class="pill pill-success">交易成功</span></td>`;
+      <td><span class="pill pill-success">${o.status}</span></td>`;
     rawBody.appendChild(tr2);
   });
 }
@@ -824,21 +855,34 @@ function renderResults() {
 function reCalc() { if (allOrders.length>0) renderResults(); }
 
 // ===================================================
-// CSV 匯出
+// Google 試算表匯出
 // ===================================================
-function exportCSV() {
+function exportGoogleSheets() {
   const dr=getDiamondRate();
-  let csv='\uFEFF遊戲,品項,伺服器,數量,鑽石,比例,台幣成本,進貨價\n';
+  // 用 Tab 分隔（TSV），貼到 Google 試算表時欄位自動分開
+  const headers=['遊戲','品項','伺服器','數量','鑽石','比例','台幣成本','進貨價'];
+  const rows=[headers];
   groupedData.forEach(g=>{
-    const ratio=g.qty/g.diamond/10000;           // 數量 ÷ 鑽石 ÷ 10000
-    const twd=Math.round(ratio*10000/dr);         // 比例 × 10000 ÷ 鑽石比例
-    const cost=Math.round(g.diamond*dr);          // 鑽石 × 鑽石比例
-    csv+=`${g.game},${g.item},${g.serverName},${g.qty},${g.diamond.toFixed(2)},${ratio.toFixed(4)},${twd},${cost}\n`;
+    const ratio=g.qty/g.diamond/10000;
+    const twd=Number(Math.round(ratio*10000/dr + 'e2') + 'e-2');
+    const cost=Number(Math.round(g.diamond*dr + 'e2') + 'e-2');
+    rows.push([g.game,g.item,g.serverName,g.qty,g.diamond.toFixed(2),ratio.toFixed(4),twd.toFixed(2),cost.toFixed(2)]);
   });
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));
-  a.download=`dd373-結算-${new Date().toISOString().slice(0,10)}.csv`;
-  a.click();
+  const tsv=rows.map(r=>r.join('\t')).join('\n');
+  navigator.clipboard.writeText(tsv).then(()=>{
+    // 複製成功後開啟新的 Google 試算表
+    window.open('https://sheets.new','_blank');
+    setTimeout(()=>{
+      alert('✅ 資料已複製到剪貼簿！\n\n在新開啟的 Google 試算表中：\n1. 點選 A1 儲存格\n2. 按 Ctrl+V 貼上\n\n欄位會自動分開。');
+    },500);
+  }).catch(()=>{
+    // 若 clipboard 失敗，改用下載 TSV
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob(['\uFEFF'+tsv],{type:'text/tab-separated-values;charset=utf-8;'}));
+    a.download=`dd373-結算-${new Date().toISOString().slice(0,10)}.tsv`;
+    a.click();
+    alert('📥 已下載 TSV 檔案，可直接拖入 Google 試算表開啟。');
+  });
 }
 
 // ===================================================
@@ -847,8 +891,8 @@ function exportCSV() {
 function importToAdmin() {
   const dr=getDiamondRate();
   const payload={
-    data: groupedData.map(g=>({...g,ratio:g.qty/g.diamond/10000,twd:Math.round(g.qty/g.diamond/10000*10000/dr),cost:Math.round(g.diamond*dr),diamondRate:dr,source:'DD373'})),
-    rawOrders: allOrders.filter(o=>o.status==='交易成功'),
+    data: groupedData.map(g=>({...g,ratio:g.qty/g.diamond/10000,twd:Number(Math.round(g.qty/g.diamond/10000*10000/dr+'e2')+'e-2'),cost:Number(Math.round(g.diamond*dr+'e2')+'e-2'),diamondRate:dr,source:'DD373'})),
+    rawOrders: allOrders.filter(o=>isSuccess(o.status)),
     diamondRate:dr, importedAt:new Date().toISOString()
   };
   localStorage.setItem('sunwater_dd373_import',JSON.stringify(payload));
