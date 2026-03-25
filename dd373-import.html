@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DD373 進貨匯入 — SunWater</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f1117; --surface: #1a1d27; --surface2: #22263a;
+    --border: #2e3350; --accent: #f59e0b; --accent2: #10b981;
+    --danger: #ef4444; --text: #e2e8f0; --text2: #94a3b8; --text3: #64748b;
+    --mono: 'JetBrains Mono', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Noto Sans TC', sans-serif; font-size: 14px; }
+  header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 24px; display: flex; align-items: center; gap: 12px; }
+  .logo { font-size: 18px; font-weight: 700; color: var(--accent); }
+  .subtitle { color: var(--text2); font-size: 13px; }
+  .main { max-width: 1100px; margin: 0 auto; padding: 24px 20px 60px; }
+
+  /* Steps */
+  .steps { display: flex; gap: 0; margin-bottom: 24px; }
+  .step { flex: 1; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-right: none; display: flex; align-items: center; gap: 10px; cursor: pointer; transition: background .15s; }
+  .step:first-child { border-radius: 8px 0 0 8px; }
+  .step:last-child { border-radius: 0 8px 8px 0; border-right: 1px solid var(--border); }
+  .step.active { background: var(--surface2); border-color: var(--accent); }
+  .step .num { width: 24px; height: 24px; border-radius: 50%; background: var(--border); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+  .step.active .num { background: var(--accent); color: #000; }
+  .step.done .num { background: var(--accent2); color: #fff; }
+  .step .label { font-size: 13px; color: var(--text2); }
+  .step.active .label { color: var(--text); }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* Card */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+  .card-title { font-size: 14px; font-weight: 700; color: var(--accent); margin-bottom: 14px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+  /* Buttons */
+  .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; transition: all .15s; font-family: 'Noto Sans TC', sans-serif; }
+  .btn-primary { background: var(--accent); color: #000; }
+  .btn-primary:hover { background: #fbbf24; }
+  .btn-success { background: var(--accent2); color: #fff; }
+  .btn-success:hover { background: #059669; }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-ghost { background: transparent; color: var(--text2); border: 1px solid var(--border); }
+  .btn-ghost:hover { background: var(--surface2); color: var(--text); }
+  .btn-sm { padding: 5px 12px; font-size: 12px; }
+  .btn-row { display: flex; gap: 8px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+
+  /* Bookmarklet */
+  .bookmarklet-box {
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    border: 2px dashed var(--accent);
+    border-radius: 10px;
+    padding: 20px;
+    text-align: center;
+    margin: 16px 0;
+  }
+  .bookmarklet-btn {
+    display: inline-block;
+    background: var(--accent);
+    color: #000;
+    font-weight: 700;
+    font-size: 15px;
+    padding: 12px 24px;
+    border-radius: 8px;
+    text-decoration: none;
+    cursor: grab;
+    border: 3px solid #d97706;
+    transition: all .2s;
+    user-select: none;
+  }
+  .bookmarklet-btn:hover { background: #fbbf24; transform: scale(1.02); }
+  .bookmarklet-hint { color: var(--text2); font-size: 12px; margin-top: 10px; }
+
+  /* How-to steps */
+  .how-step { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .how-step:last-child { border-bottom: none; }
+  .how-step-num { width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: #000; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
+  .how-step-title { font-weight: 600; margin-bottom: 3px; }
+  .how-step-desc { color: var(--text2); font-size: 13px; line-height: 1.5; }
+  .tag { display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: 11px; font-weight: 600; font-family: var(--mono); }
+  .tag-orange { background: rgba(245,158,11,.15); color: var(--accent); border: 1px solid rgba(245,158,11,.3); }
+  .tag-green { background: rgba(16,185,129,.15); color: var(--accent2); border: 1px solid rgba(16,185,129,.3); }
+  .tag-blue { background: rgba(59,130,246,.15); color: #60a5fa; border: 1px solid rgba(59,130,246,.3); }
+
+  /* Progress counter */
+  .progress-bar { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; display: flex; align-items: center; gap: 20px; }
+  .progress-num { font-size: 32px; font-weight: 700; color: var(--accent); font-family: var(--mono); }
+  .progress-label { color: var(--text2); font-size: 13px; }
+  .progress-sub { font-size: 11px; color: var(--text3); margin-top: 2px; }
+
+  /* Alert */
+  .alert { padding: 12px 16px; border-radius: 8px; margin-bottom: 14px; font-size: 13px; line-height: 1.6; }
+  .alert-info { background: rgba(59,130,246,.1); border: 1px solid rgba(59,130,246,.3); color: #93c5fd; }
+  .alert-warn { background: rgba(245,158,11,.1); border: 1px solid rgba(245,158,11,.3); color: #fcd34d; }
+  .alert-success { background: rgba(16,185,129,.1); border: 1px solid rgba(16,185,129,.3); color: #6ee7b7; }
+
+  /* Form */
+  .form-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+  .form-group { display: flex; flex-direction: column; gap: 5px; }
+  .form-group label { font-size: 12px; color: var(--text2); }
+  .form-group input, .form-group select { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 7px 10px; border-radius: 6px; font-family: var(--mono); font-size: 13px; min-width: 150px; }
+  .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--accent); }
+
+  /* Table */
+  .result-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .result-table th { background: var(--surface2); color: var(--text2); padding: 9px 12px; text-align: left; font-weight: 600; border-bottom: 2px solid var(--border); white-space: nowrap; }
+  .result-table td { padding: 9px 12px; border-bottom: 1px solid var(--border); }
+  .result-table tr:hover td { background: rgba(255,255,255,.02); }
+  .td-mono { font-family: var(--mono); }
+  .td-right { text-align: right; }
+  .td-accent { color: var(--accent); font-weight: 600; }
+  .td-green { color: var(--accent2); font-weight: 600; }
+  .total-row td { background: var(--surface2); font-weight: 700; color: var(--accent); }
+
+  /* Summary cards */
+  .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+  @media (max-width: 600px) { .summary-grid { grid-template-columns: 1fr; } }
+  .summary-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+  .s-label { font-size: 12px; color: var(--text3); margin-bottom: 6px; }
+  .s-val { font-size: 22px; font-weight: 700; color: var(--accent); font-family: var(--mono); }
+  .s-sub { font-size: 12px; color: var(--text3); margin-top: 3px; }
+
+  /* Pill */
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+  .pill-success { background: rgba(16,185,129,.15); color: var(--accent2); }
+  .pill-warn { background: rgba(245,158,11,.15); color: var(--accent); }
+  .pill-danger { background: rgba(239,68,68,.15); color: #f87171; }
+
+  /* Rate badge */
+  .rate-badge { display: inline-flex; align-items: center; gap: 6px; background: var(--surface2); border: 1px solid var(--border); padding: 5px 12px; border-radius: 20px; font-family: var(--mono); font-size: 13px; }
+  .rate-badge .val { color: var(--accent); font-weight: 700; }
+
+  .loading { display: inline-block; width: 13px; height: 13px; border-radius: 50%; border: 2px solid rgba(245,158,11,.3); border-top-color: var(--accent); animation: spin .6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🌊 SunWater</div>
+  <div class="subtitle">DD373 進貨匯入系統 v2</div>
+  <div style="margin-left:auto;font-size:12px;color:var(--text3);">書籤按鈕版 · 無需 API</div>
+</header>
+
+<div class="main">
+
+  <!-- Steps -->
+  <div class="steps">
+    <div class="step active" id="step1" onclick="goStep(1)">
+      <div class="num">1</div><div class="label">安裝書籤按鈕</div>
+    </div>
+    <div class="step" id="step2" onclick="goStep(2)">
+      <div class="num">2</div><div class="label">在 DD373 逐頁擷取</div>
+    </div>
+    <div class="step" id="step3" onclick="goStep(3)">
+      <div class="num">3</div><div class="label">結算預覽 &amp; 匯入</div>
+    </div>
+  </div>
+
+  <!-- ===== PANEL 1：安裝書籤按鈕 ===== -->
+  <div class="panel active" id="panel1">
+
+    <div class="card">
+      <div class="card-title">🔖 安裝「DD373擷取」書籤按鈕</div>
+
+      <div class="alert alert-info">
+        ℹ️ DD373 的訂單由伺服器渲染在網頁裡，無法透過 API 直接讀取。此書籤按鈕讓您在 DD373 頁面點一下即可擷取當頁訂單，完全不需要輸入帳密或安裝任何外掛程式。
+      </div>
+
+      <div class="bookmarklet-box">
+        <div style="font-size:13px;color:var(--text2);margin-bottom:12px;">拖曳下方按鈕到書籤列，或按右鍵加入書籤</div>
+        <a class="bookmarklet-btn" id="bookmarkletLink" href="#">📦 DD373擷取</a>
+        <div class="bookmarklet-hint">⬆ 將此按鈕拖到瀏覽器書籤列（Bookmarks Bar）</div>
+      </div>
+
+      <div style="margin-top:4px;">
+        <div class="how-step">
+          <div class="how-step-num">1</div>
+          <div>
+            <div class="how-step-title">確認書籤列可見</div>
+            <div class="how-step-desc">Chrome：按 <span class="tag tag-orange">Ctrl+Shift+B</span> 顯示書籤列</div>
+          </div>
+        </div>
+        <div class="how-step">
+          <div class="how-step-num">2</div>
+          <div>
+            <div class="how-step-title">拖曳書籤按鈕到書籤列</div>
+            <div class="how-step-desc">用滑鼠把上方橙色按鈕拖到書籤列，或右鍵選「加入書籤」</div>
+          </div>
+        </div>
+        <div class="how-step">
+          <div class="how-step-num">3</div>
+          <div>
+            <div class="how-step-title">安裝完成，前往步驟 2</div>
+            <div class="how-step-desc">書籤安裝一次即可，之後每次使用都不需重新安裝</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="goStep(2)">下一步 →</button>
+        <button class="btn btn-ghost btn-sm" onclick="testBookmarklet()">🧪 在此頁測試</button>
+        <span id="testResult" style="font-size:12px;color:var(--text2);"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== PANEL 2：逐頁擷取 ===== -->
+  <div class="panel" id="panel2">
+
+    <div class="card">
+      <div class="card-title">📋 使用步驟</div>
+      <div class="how-step">
+        <div class="how-step-num">1</div>
+        <div>
+          <div class="how-step-title">前往 DD373 訂單頁面</div>
+          <div class="how-step-desc">
+            開啟 <span class="tag tag-orange">order.dd373.com/usercenter/buyer/buy_orders.html</span>，確認已登入。
+          </div>
+        </div>
+      </div>
+      <div class="how-step">
+        <div class="how-step-num">2</div>
+        <div>
+          <div class="how-step-title">設定篩選條件</div>
+          <div class="how-step-desc">
+            設定您要的日期範圍，點擊頂部 Tab 選 <span class="tag tag-green">待評價</span> 或保持「所有訂單」，再按橙色「搜索」按鈕。<br>
+            <small style="color:var(--text3);">Tips：「交易成功」= data-id 1 的訂單，書籤按鈕會自動篩選</small>
+          </div>
+        </div>
+      </div>
+      <div class="how-step">
+        <div class="how-step-num">3</div>
+        <div>
+          <div class="how-step-title">點書籤按鈕擷取當頁</div>
+          <div class="how-step-desc">
+            在書籤列點 <span class="tag tag-orange">📦 DD373擷取</span>，彈窗顯示擷取筆數與累積總數。
+          </div>
+        </div>
+      </div>
+      <div class="how-step">
+        <div class="how-step-num">4</div>
+        <div>
+          <div class="how-step-title">翻到下一頁，重複點書籤</div>
+          <div class="how-step-desc">
+            點 DD373 分頁的「&gt;」翻下一頁，再點書籤。重複直到所有頁面完成。每筆訂單會自動去重，不用擔心重複。
+          </div>
+        </div>
+      </div>
+      <div class="how-step">
+        <div class="how-step-num">5</div>
+        <div>
+          <div class="how-step-title">回到此頁，點「載入已擷取資料」</div>
+          <div class="how-step-desc">完成後回到此頁按下方按鈕，自動讀取所有已擷取訂單。</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 即時進度 -->
+    <div class="card">
+      <div class="card-title">📊 目前已擷取資料</div>
+      <div class="progress-bar">
+        <div>
+          <div class="s-label">已擷取訂單</div>
+          <div class="progress-num" id="storedCount">0</div>
+          <div class="progress-sub">筆（所有狀態）</div>
+        </div>
+        <div style="width:1px;background:var(--border);height:40px;"></div>
+        <div>
+          <div class="s-label">交易成功</div>
+          <div class="progress-num" id="successCount" style="color:var(--accent2);">0</div>
+          <div class="progress-sub">筆（進貨對象）</div>
+        </div>
+        <div style="width:1px;background:var(--border);height:40px;"></div>
+        <div>
+          <div class="s-label">最後更新</div>
+          <div class="progress-num" id="lastUpdate" style="font-size:14px;color:var(--text2);">—</div>
+        </div>
+        <div style="margin-left:auto;">
+          <button class="btn btn-ghost btn-sm" onclick="refreshStats()">🔄 重新整理</button>
+        </div>
+      </div>
+
+      <div class="btn-row" style="margin-top:16px;">
+        <button class="btn btn-primary" onclick="loadAndPreview()">✅ 載入已擷取資料 → 步驟 3</button>
+        <button class="btn btn-ghost" onclick="goStep(1)">← 上一步</button>
+        <button class="btn btn-danger btn-sm" onclick="clearStored()" style="margin-left:auto;">🗑️ 清除已擷取</button>
+      </div>
+    </div>
+
+    <!-- 匯率設定 -->
+    <div class="card">
+      <div class="card-title">💱 匯率設定</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>台銀現金賣出匯率 (TWD/CNY)</label>
+          <input type="number" id="exchangeRate" step="0.0001" placeholder="e.g. 4.5120">
+        </div>
+        <div class="form-group">
+          <label>乘數（預設 1.02）</label>
+          <input type="number" id="multiplier" value="1.02" step="0.001">
+        </div>
+        <div class="form-group">
+          <label>&nbsp;</label>
+          <button class="btn btn-ghost" onclick="fetchRate()">📡 自動取得匯率</button>
+        </div>
+        <span id="rateStatus" style="font-size:12px;color:var(--text2);align-self:flex-end;padding-bottom:8px;"></span>
+      </div>
+      <div style="font-size:12px;color:var(--text3);margin-top:4px;">
+        比例 = 台銀現金賣出 × 乘數 &nbsp;|&nbsp; 台幣成本 = ROUND(鑽石¥ × 比例, 0)
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== PANEL 3：結算預覽 ===== -->
+  <div class="panel" id="panel3">
+    <div id="resultContent" style="display:none;">
+
+      <div class="summary-grid">
+        <div class="summary-card">
+          <div class="s-label">交易成功訂單數</div>
+          <div class="s-val" id="sum-orders">0</div>
+          <div class="s-sub">筆</div>
+        </div>
+        <div class="summary-card">
+          <div class="s-label">總鑽石成本 (¥)</div>
+          <div class="s-val" id="sum-diamond">0.00</div>
+          <div class="s-sub">人民幣</div>
+        </div>
+        <div class="summary-card">
+          <div class="s-label">總台幣成本</div>
+          <div class="s-val" id="sum-twd">—</div>
+          <div class="s-sub">台幣</div>
+        </div>
+      </div>
+
+      <!-- 結算表 -->
+      <div class="card">
+        <div class="card-title" style="margin-bottom:16px;">
+          📊 DD373 進貨結算表
+          <span style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;">
+            <span id="rateUsed" class="rate-badge">比例 <span class="val">—</span></span>
+            <button class="btn btn-sm btn-ghost" onclick="reCalc()">🔄 重新計算</button>
+            <button class="btn btn-sm btn-primary" onclick="exportCSV()">💾 匯出 CSV</button>
+          </span>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="result-table">
+            <thead>
+              <tr>
+                <th>遊戲</th><th>品項</th><th>伺服器</th>
+                <th class="td-right">數量</th>
+                <th class="td-right">鑽石(¥)</th>
+                <th class="td-right">比例</th>
+                <th class="td-right">台幣成本</th>
+              </tr>
+            </thead>
+            <tbody id="resultBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 原始訂單 -->
+      <div class="card">
+        <div class="card-title">📋 原始訂單明細（交易成功）</div>
+        <div style="overflow-x:auto;max-height:300px;overflow-y:auto;">
+          <table class="result-table">
+            <thead>
+              <tr><th>日期</th><th>訂單號</th><th>商品</th><th class="td-right">金額(¥)</th><th>狀態</th></tr>
+            </thead>
+            <tbody id="rawBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-success" onclick="importToAdmin()" style="padding:10px 20px;font-size:14px;">✅ 匯入到進貨帳本</button>
+        <button class="btn btn-ghost" onclick="goStep(2)">← 上一步</button>
+      </div>
+    </div>
+
+    <div id="noData" class="alert alert-warn">
+      尚無資料。請先完成步驟 1 &amp; 2 擷取 DD373 訂單後再查看。
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<script>
+// ===================================================
+// 書籤按鈕程式碼（injected into the href）
+// ===================================================
+const BOOKMARKLET_CODE = `(function(){
+  var tables=[].slice.call(document.querySelectorAll('table')).filter(function(t){return t.textContent.indexOf('DBA')>-1;});
+  var orders=tables.map(function(t){
+    var rs=[].slice.call(t.querySelectorAll('tr'));
+    var h=(rs[0]&&rs[0].textContent||'').replace(/\\s+/g,' ').trim();
+    var cells=[].slice.call(rs[1]&&rs[1].querySelectorAll('td')||[]).map(function(c){return c.textContent.replace(/\\s+/g,' ').trim();});
+    var statusRaw=cells[4]||'';
+    return {
+      date:(h.match(/创建时间[：:](\\S+ \\S+)/)||[])[1]||'',
+      orderNo:(h.match(/订单编号[：:](\\w+)/)||[])[1]||'',
+      goods:cells[0]||'',
+      unitPrice:cells[1]||'',
+      status:statusRaw.replace(/\\s+.*/,'')
+    };
+  }).filter(function(o){return o.orderNo;});
+
+  var KEY='sunwater_dd373_orders';
+  var existing=[];
+  try{existing=JSON.parse(localStorage.getItem(KEY)||'[]');}catch(e){}
+  var existingNos=existing.map(function(e){return e.orderNo;});
+  var newOrders=orders.filter(function(o){return existingNos.indexOf(o.orderNo)<0;});
+  var merged=existing.concat(newOrders);
+  localStorage.setItem(KEY,JSON.stringify(merged));
+  localStorage.setItem(KEY+'_time',new Date().toISOString());
+
+  var success=merged.filter(function(o){return o.status==='交易成功';}).length;
+  alert('✅ 本頁擷取 '+orders.length+' 筆（新增 '+newOrders.length+' 筆）\\n累積共 '+merged.length+' 筆（交易成功：'+success+' 筆）\\n\\n請翻頁繼續，或回到 SunWater 匯入頁查看結果。');
+})();`;
+
+// 設定書籤按鈕 href
+document.getElementById('bookmarkletLink').href = 'javascript:' + BOOKMARKLET_CODE;
+
+// ===================================================
+// State & helpers
+// ===================================================
+let allOrders = [];
+let groupedData = [];
+
+function goStep(n) {
+  [1,2,3].forEach(i => {
+    document.getElementById('panel'+i).classList.toggle('active', i===n);
+    document.getElementById('step'+i).classList.toggle('active', i===n);
+  });
+  if (n === 2) refreshStats();
+  if (n === 3 && allOrders.length > 0) renderResults();
+}
+
+function testBookmarklet() {
+  // Create fake test data to simulate bookmarklet on this page
+  const KEY = 'sunwater_dd373_orders';
+  const test = [{
+    date:'2026-03-25 17:22:21', orderNo:'DBA2026TEST001',
+    goods:'664万金=5020.00元 游戏区服： 天堂:经典版/台服/半人馬涅索斯 商品类型：游戏币',
+    unitPrice:'￥5020.00', status:'交易成功'
+  }];
+  const existing = JSON.parse(localStorage.getItem(KEY)||'[]');
+  if (!existing.find(e=>e.orderNo==='DBA2026TEST001')) {
+    localStorage.setItem(KEY, JSON.stringify([...existing, ...test]));
+    localStorage.setItem(KEY+'_time', new Date().toISOString());
+  }
+  document.getElementById('testResult').textContent = '✅ 測試資料已加入（1 筆）';
+  setTimeout(() => { document.getElementById('testResult').textContent = ''; }, 3000);
+}
+
+// ===================================================
+// Step 2: stats
+// ===================================================
+function refreshStats() {
+  try {
+    const raw = localStorage.getItem('sunwater_dd373_orders');
+    const orders = raw ? JSON.parse(raw) : [];
+    const timeStr = localStorage.getItem('sunwater_dd373_orders_time');
+    document.getElementById('storedCount').textContent = orders.length;
+    document.getElementById('successCount').textContent = orders.filter(o=>o.status==='交易成功').length;
+    document.getElementById('lastUpdate').textContent = timeStr
+      ? new Date(timeStr).toLocaleTimeString('zh-TW')
+      : '—';
+  } catch(e) {}
+}
+
+function clearStored() {
+  if (!confirm('確定要清除所有已擷取的訂單資料？')) return;
+  localStorage.removeItem('sunwater_dd373_orders');
+  localStorage.removeItem('sunwater_dd373_orders_time');
+  refreshStats();
+}
+
+function loadAndPreview() {
+  try {
+    const raw = localStorage.getItem('sunwater_dd373_orders');
+    allOrders = raw ? JSON.parse(raw) : [];
+    if (allOrders.length === 0) {
+      alert('尚無已擷取資料，請先在 DD373 頁面點擊書籤按鈕。');
+      return;
+    }
+    goStep(3);
+  } catch(e) {
+    alert('讀取資料失敗：' + e.message);
+  }
+}
+
+// ===================================================
+// Exchange rate
+// ===================================================
+async function fetchRate() {
+  document.getElementById('rateStatus').innerHTML = '<span class="loading"></span>';
+  try {
+    const r = await fetch('https://mini872826-beep.github.io/sunwater-rate/rate.json?_t='+Date.now());
+    const d = await r.json();
+    const rate = parseFloat(d.rate);
+    document.getElementById('exchangeRate').value = rate;
+    document.getElementById('rateStatus').innerHTML = '<span class="tag tag-green">✓ 匯率 ' + rate + '</span>';
+  } catch(e) {
+    document.getElementById('rateStatus').textContent = '取得失敗，請手動填入';
+  }
+}
+
+// ===================================================
+// Parsing logic
+// ===================================================
+function parseGoods(goodsText) {
+  // e.g. "664万金=5020.00元 游戏区服：天堂:经典版/台服/半人馬涅索斯 商品类型：游戏币"
+  const titleMatch = goodsText.match(/^(.+?)=(\d+\.?\d*)元/);
+  const title = (titleMatch?.[1] || '').trim();
+  const diamond = parseFloat(titleMatch?.[2] || 0);
+
+  let qty = 0, item = '';
+  const qtyMatch = title.match(/^(\d+\.?\d*)(萬|万)?(.+)$/);
+  if (qtyMatch) {
+    const num = parseFloat(qtyMatch[1]);
+    const wan = qtyMatch[2] ? 10000 : 1;
+    item = (qtyMatch[2] ? '萬' : '') + qtyMatch[3];
+    qty = Math.round(num * wan);
+  }
+
+  const regionMatch = goodsText.match(/游戏区服[：:]\s*(.+?)(?:\s+商品类型|$)/);
+  const regionText = (regionMatch?.[1] || '').trim();
+  const parts = regionText.replace(/[：:]/g, '/').split('/').map(s=>s.trim()).filter(Boolean);
+  const game = parts.slice(0, 2).join('');
+  const serverType = parts[2] || '';
+  const serverName = parts[3] || '';
+
+  return { title, qty, item, diamond, game, serverType, serverName };
+}
+
+function groupOrders(orders) {
+  const map = {};
+  orders.forEach(o => {
+    if (!o.goods) return;
+    const p = parseGoods(o.goods);
+    if (!p.game && !p.item) return;
+    const key = `${p.game}||${p.item}||${p.serverName}`;
+    if (!map[key]) map[key] = { game: p.game, item: p.item, serverName: p.serverName, qty: 0, diamond: 0, count: 0 };
+    map[key].qty += p.qty;
+    map[key].diamond += p.diamond;
+    map[key].count++;
+  });
+  return Object.values(map).sort((a,b) => b.diamond - a.diamond);
+}
+
+// ===================================================
+// Step 3: render results
+// ===================================================
+function renderResults() {
+  const rate = parseFloat(document.getElementById('exchangeRate').value) || 0;
+  const mult = parseFloat(document.getElementById('multiplier').value) || 1.02;
+  const ratio = rate * mult;
+
+  const successOrders = allOrders.filter(o => o.status === '交易成功');
+
+  document.getElementById('noData').style.display = 'none';
+  document.getElementById('resultContent').style.display = 'block';
+
+  // Summary
+  const totalDiamond = successOrders.reduce((s,o) => {
+    const m = o.goods?.match(/=(\d+\.?\d*)元/);
+    return s + (m ? parseFloat(m[1]) : 0);
+  }, 0);
+  const totalTWD = rate > 0 ? Math.round(totalDiamond * ratio) : 0;
+
+  document.getElementById('sum-orders').textContent = successOrders.length;
+  document.getElementById('sum-diamond').textContent = totalDiamond.toFixed(2);
+  document.getElementById('sum-twd').textContent = rate > 0 ? 'NT$' + totalTWD.toLocaleString() : '—';
+  document.getElementById('rateUsed').innerHTML = `比例 <span class="val">${ratio > 0 ? ratio.toFixed(4) : '未設定'}</span>`;
+
+  // Grouped table
+  groupedData = groupOrders(successOrders);
+  const tbody = document.getElementById('resultBody');
+  tbody.innerHTML = '';
+  let totQty = 0, totDia = 0, totTWD = 0;
+
+  groupedData.forEach(g => {
+    const twd = rate > 0 ? Math.round(g.diamond * ratio) : 0;
+    totQty += g.qty; totDia += g.diamond; totTWD += twd;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${g.game}</td>
+      <td>${g.item}</td>
+      <td>${g.serverName}</td>
+      <td class="td-right td-mono">${g.qty.toLocaleString()}</td>
+      <td class="td-right td-mono td-accent">¥${g.diamond.toFixed(2)}</td>
+      <td class="td-right td-mono">${ratio > 0 ? ratio.toFixed(4) : '—'}</td>
+      <td class="td-right td-mono td-green">${twd > 0 ? 'NT$' + twd.toLocaleString() : '—'}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  // Total row
+  const tr = document.createElement('tr');
+  tr.className = 'total-row';
+  tr.innerHTML = `
+    <td colspan="3">合計（${groupedData.length} 組）</td>
+    <td class="td-right td-mono">${totQty.toLocaleString()}</td>
+    <td class="td-right td-mono">¥${totDia.toFixed(2)}</td>
+    <td class="td-right">—</td>
+    <td class="td-right td-mono">NT$${totTWD.toLocaleString()}</td>
+  `;
+  tbody.appendChild(tr);
+
+  // Raw table
+  const rawBody = document.getElementById('rawBody');
+  rawBody.innerHTML = '';
+  successOrders.forEach(o => {
+    const m = o.goods?.match(/=(\d+\.?\d*)元/);
+    const diamond = m ? parseFloat(m[1]) : 0;
+    const goodsShort = (o.goods || '').split('游戏区服')[0].trim();
+    const tr2 = document.createElement('tr');
+    tr2.innerHTML = `
+      <td class="td-mono" style="font-size:12px;">${o.date||'—'}</td>
+      <td class="td-mono" style="font-size:11px;">${o.orderNo||'—'}</td>
+      <td>${goodsShort}</td>
+      <td class="td-right td-mono td-accent">¥${diamond.toFixed(2)}</td>
+      <td><span class="pill pill-success">交易成功</span></td>
+    `;
+    rawBody.appendChild(tr2);
+  });
+}
+
+function reCalc() {
+  if (allOrders.length > 0) renderResults();
+}
+
+// ===================================================
+// Export CSV
+// ===================================================
+function exportCSV() {
+  const rate = parseFloat(document.getElementById('exchangeRate').value) || 0;
+  const mult = parseFloat(document.getElementById('multiplier').value) || 1.02;
+  const ratio = rate * mult;
+
+  let csv = '\uFEFF遊戲,品項,伺服器,數量,鑽石(¥),比例,台幣成本\n';
+  groupedData.forEach(g => {
+    const twd = rate > 0 ? Math.round(g.diamond * ratio) : 0;
+    csv += `${g.game},${g.item},${g.serverName},${g.qty},${g.diamond.toFixed(2)},${ratio.toFixed(4)},${twd}\n`;
+  });
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `dd373-結算-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+
+// ===================================================
+// Import to admin
+// ===================================================
+function importToAdmin() {
+  const rate = parseFloat(document.getElementById('exchangeRate').value) || 0;
+  const mult = parseFloat(document.getElementById('multiplier').value) || 1.02;
+  const ratio = rate * mult;
+
+  const importPayload = {
+    data: groupedData.map(g => ({
+      ...g,
+      ratio,
+      twd: rate > 0 ? Math.round(g.diamond * ratio) : 0,
+      source: 'DD373'
+    })),
+    rawOrders: allOrders.filter(o=>o.status==='交易成功'),
+    rate, multiplier: mult, ratio,
+    importedAt: new Date().toISOString()
+  };
+
+  localStorage.setItem('sunwater_dd373_import', JSON.stringify(importPayload));
+  alert(`✅ 已準備 ${importPayload.data.length} 筆分組進貨資料\n\n請開啟 sunwater-admin.html，在「進貨記帳」點選「讀取 DD373 匯入」按鈕。`);
+}
+
+// ===================================================
+// Init
+// ===================================================
+(function init() {
+  refreshStats();
+  fetchRate();
+  // Auto-refresh stats every 5s (in case user is on DD373 in another tab)
+  setInterval(refreshStats, 5000);
+})();
+</script>
+</body>
+</html>
