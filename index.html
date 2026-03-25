@@ -337,12 +337,12 @@
       <div class="card-title">🗓️ 時間範圍篩選</div>
       <div class="form-row" style="gap:16px;">
         <div class="form-group">
-          <label>起始時間</label>
-          <input type="datetime-local" id="startTime" style="min-width:210px;">
+          <label>起始時間 <span style="font-size:11px;color:var(--text3);">（可貼上 DD373 時間戳）</span></label>
+          <input type="datetime-local" id="startTime" step="1" style="min-width:230px;">
         </div>
         <div class="form-group">
-          <label>結束時間</label>
-          <input type="datetime-local" id="endTime" style="min-width:210px;">
+          <label>結束時間 <span style="font-size:11px;color:var(--text3);">（空白 = 當下時間）</span></label>
+          <input type="datetime-local" id="endTime" step="1" style="min-width:230px;">
         </div>
         <div class="form-group">
           <label>&nbsp;</label>
@@ -354,7 +354,7 @@
           </div>
         </div>
       </div>
-      <div style="font-size:12px;color:var(--text3);margin-top:8px;">⚠️ 留白 = 不限時間（顯示全部交易成功訂單）</div>
+      <div style="font-size:12px;color:var(--text3);margin-top:8px;">⚠️ 起始時間可直接貼上 DD373 時間戳格式（如 2026-03-26 01:22:07）；結束時間留白 = 自動使用當下時間</div>
     </div>
 
     <!-- 比例設定 -->
@@ -569,21 +569,29 @@ function fmtTWD(n) {
 // ===================================================
 function toLocalDatetimeStr(d) {
   const p = n => String(n).padStart(2,'0');
-  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+// 將各種格式（DD373空格格式 "2026-03-26 01:22:07" 或 datetime-local 格式）轉成 Date
+function parseInputDatetime(str) {
+  if (!str) return null;
+  // 支援 "YYYY-MM-DD HH:MM:SS" 及 "YYYY-MM-DDTHH:MM:SS" 兩種格式
+  const normalized = str.trim().replace(' ', 'T');
+  const d = new Date(normalized);
+  return isNaN(d.getTime()) ? null : d;
 }
 function setTimeRange(r) {
   const now = new Date();
   let s, e;
   if (r==='today') {
-    s=new Date(now.getFullYear(),now.getMonth(),now.getDate(),0,0);
-    e=new Date(now.getFullYear(),now.getMonth(),now.getDate(),23,59);
+    s=new Date(now.getFullYear(),now.getMonth(),now.getDate(),0,0,0);
+    e=new Date(now.getFullYear(),now.getMonth(),now.getDate(),23,59,59);
   } else if (r==='yesterday') {
     const y=new Date(now); y.setDate(y.getDate()-1);
-    s=new Date(y.getFullYear(),y.getMonth(),y.getDate(),0,0);
-    e=new Date(y.getFullYear(),y.getMonth(),y.getDate(),23,59);
+    s=new Date(y.getFullYear(),y.getMonth(),y.getDate(),0,0,0);
+    e=new Date(y.getFullYear(),y.getMonth(),y.getDate(),23,59,59);
   } else if (r==='7d') {
     s=new Date(now); s.setDate(s.getDate()-6); s.setHours(0,0,0,0);
-    e=new Date(now.getFullYear(),now.getMonth(),now.getDate(),23,59);
+    e=new Date(now.getFullYear(),now.getMonth(),now.getDate(),23,59,59);
   } else {
     document.getElementById('startTime').value='';
     document.getElementById('endTime').value=''; return;
@@ -591,10 +599,29 @@ function setTimeRange(r) {
   document.getElementById('startTime').value=toLocalDatetimeStr(s);
   document.getElementById('endTime').value=toLocalDatetimeStr(e);
 }
+// 監聽起始時間貼上事件：自動將 DD373 時間戳格式轉換成 datetime-local 格式
+document.addEventListener('DOMContentLoaded', function() {
+  const startEl = document.getElementById('startTime');
+  if (startEl) {
+    startEl.addEventListener('paste', function(ev) {
+      ev.preventDefault();
+      const pasted = (ev.clipboardData || window.clipboardData).getData('text').trim();
+      // 嘗試解析 DD373 格式 "YYYY-MM-DD HH:MM:SS"
+      const d = parseInputDatetime(pasted);
+      if (d) {
+        startEl.value = toLocalDatetimeStr(d);
+      } else {
+        startEl.value = pasted; // 原樣貼上，讓瀏覽器自行處理
+      }
+    });
+  }
+});
 function getTimeFilter() {
-  const s=document.getElementById('startTime').value;
-  const e=document.getElementById('endTime').value;
-  return { start: s?new Date(s):null, end: e?new Date(e):null };
+  const s = document.getElementById('startTime').value;
+  const e = document.getElementById('endTime').value;
+  // 結束時間若留空，自動使用當下時間
+  const endDate = e ? parseInputDatetime(e) : new Date();
+  return { start: s ? parseInputDatetime(s) : null, end: endDate };
 }
 function parseOrderDate(str) {
   if (!str) return null;
@@ -732,12 +759,9 @@ function renderResults() {
   document.getElementById('resultContent').style.display='block';
 
   const totalDia=successOrders.reduce((s,o)=>{const m=o.goods?.match(/=(\d+\.?\d*)元/);return s+(m?parseFloat(m[1]):0);},0);
-  const totalTWD=Math.round(totalDia/diamondRate/10000*10000/diamondRate);
-  const totalCost=Math.round(totalDia*diamondRate);
 
   document.getElementById('sum-orders').textContent=successOrders.length;
   document.getElementById('sum-diamond').textContent=totalDia.toFixed(2);
-  document.getElementById('sum-twd').textContent=fmtTWD(totalTWD);
   document.getElementById('rateUsed').innerHTML=`鑽石比例 <span class="val">${diamondRate.toFixed(3)}</span>`;
 
   groupedData=groupOrders(successOrders);
@@ -746,7 +770,8 @@ function renderResults() {
   let totQty=0,totDia=0,totTWD=0,totCost=0;
 
   groupedData.forEach(g=>{
-    const ratio=g.diamond/diamondRate/10000;
+    // 比例 = 數量 ÷ 鑽石 ÷ 10000
+    const ratio=g.qty/g.diamond/10000;
     // 台幣成本 = 比例 × 10000 ÷ 鑽石比例
     const twd=Math.round(ratio*10000/diamondRate);
     // 進貨價 = 鑽石 × 鑽石比例
@@ -757,23 +782,27 @@ function renderResults() {
       <td>${g.game}</td><td>${g.item}</td><td>${g.serverName}</td>
       <td class="td-right td-mono">${g.qty.toLocaleString()}</td>
       <td class="td-right td-mono td-accent">${g.diamond.toFixed(2)}</td>
-      <td class="td-right td-mono">${ratio.toFixed(5)}</td>
+      <td class="td-right td-mono">${ratio.toFixed(4)}</td>
       <td class="td-right td-mono td-green">${fmtTWD(twd)}</td>
       <td class="td-right td-mono" style="color:var(--accent2);opacity:.75;">${fmtTWD(cost)}</td>`;
     tbody.appendChild(tr);
   });
 
+  // 合計列的比例 = 總數量 ÷ 總鑽石 ÷ 10000
+  const totRatio=totQty/totDia/10000;
   const totRow=document.createElement('tr');
   totRow.className='total-row';
-  const totRatio=totDia/diamondRate/10000;
   totRow.innerHTML=`
     <td colspan="3">合計（${groupedData.length} 組 / ${successOrders.length} 筆）</td>
     <td class="td-right td-mono">${totQty.toLocaleString()}</td>
     <td class="td-right td-mono">${totDia.toFixed(2)}</td>
-    <td class="td-right td-mono">${totRatio.toFixed(5)}</td>
+    <td class="td-right td-mono">${totRatio.toFixed(4)}</td>
     <td class="td-right td-mono">${fmtTWD(totTWD)}</td>
     <td class="td-right td-mono">${fmtTWD(totCost)}</td>`;
   tbody.appendChild(totRow);
+
+  // 摘要卡：用群組加總後的值更新
+  document.getElementById('sum-twd').textContent=fmtTWD(totTWD);
 
   const rawBody=document.getElementById('rawBody');
   rawBody.innerHTML='';
@@ -801,10 +830,10 @@ function exportCSV() {
   const dr=getDiamondRate();
   let csv='\uFEFF遊戲,品項,伺服器,數量,鑽石,比例,台幣成本,進貨價\n';
   groupedData.forEach(g=>{
-    const ratio=g.diamond/dr/10000;
-    const twd=Math.round(ratio*10000/dr);
-    const cost=Math.round(g.diamond*dr);
-    csv+=`${g.game},${g.item},${g.serverName},${g.qty},${g.diamond.toFixed(2)},${ratio.toFixed(5)},${twd},${cost}\n`;
+    const ratio=g.qty/g.diamond/10000;           // 數量 ÷ 鑽石 ÷ 10000
+    const twd=Math.round(ratio*10000/dr);         // 比例 × 10000 ÷ 鑽石比例
+    const cost=Math.round(g.diamond*dr);          // 鑽石 × 鑽石比例
+    csv+=`${g.game},${g.item},${g.serverName},${g.qty},${g.diamond.toFixed(2)},${ratio.toFixed(4)},${twd},${cost}\n`;
   });
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));
@@ -818,7 +847,7 @@ function exportCSV() {
 function importToAdmin() {
   const dr=getDiamondRate();
   const payload={
-    data: groupedData.map(g=>({...g,ratio:g.diamond/dr/10000,twd:Math.round(dr*g.diamond*10)/10,diamondRate:dr,source:'DD373'})),
+    data: groupedData.map(g=>({...g,ratio:g.qty/g.diamond/10000,twd:Math.round(g.qty/g.diamond/10000*10000/dr),cost:Math.round(g.diamond*dr),diamondRate:dr,source:'DD373'})),
     rawOrders: allOrders.filter(o=>o.status==='交易成功'),
     diamondRate:dr, importedAt:new Date().toISOString()
   };
