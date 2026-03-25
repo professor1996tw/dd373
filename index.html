@@ -577,6 +577,10 @@ function updateRateCalc() {
 function fmtTWD(n) {
   return Number(Math.round(n + 'e2') + 'e-2').toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
+// 進貨價格式：四捨五入到整數 + 千分位（789.66→790, 102510.83→102,511）
+function fmtCost(n) {
+  return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
 
 // ===================================================
 // 時間範圍
@@ -815,7 +819,7 @@ function renderResults() {
       <td class="td-right td-mono td-accent">${g.diamond.toFixed(2)}</td>
       <td class="td-right td-mono">${ratio.toFixed(4)}</td>
       <td class="td-right td-mono td-green">${fmtTWD(twd)}</td>
-      <td class="td-right td-mono" style="color:var(--accent2);opacity:.75;">${fmtTWD(cost)}</td>`;
+      <td class="td-right td-mono" style="color:var(--accent2);opacity:.75;">${fmtCost(cost)}</td>`;
     tbody.appendChild(tr);
   });
 
@@ -829,7 +833,7 @@ function renderResults() {
     <td class="td-right td-mono">${totDia.toFixed(2)}</td>
     <td class="td-right td-mono">${totRatio.toFixed(4)}</td>
     <td class="td-right td-mono">${fmtTWD(totTWD)}</td>
-    <td class="td-right td-mono">${fmtTWD(totCost)}</td>`;
+    <td class="td-right td-mono">${fmtCost(totCost)}</td>`;
   tbody.appendChild(totRow);
 
   // 摘要卡：用群組加總後的值更新
@@ -866,7 +870,7 @@ function exportGoogleSheets() {
     const ratio=g.qty/g.diamond/10000;
     const twd=Number(Math.round(ratio*10000/dr + 'e2') + 'e-2');
     const cost=Number(Math.round(g.diamond*dr + 'e2') + 'e-2');
-    rows.push([g.game,g.item,g.serverName,g.qty,g.diamond.toFixed(2),ratio.toFixed(4),twd.toFixed(2),cost.toFixed(2)]);
+    rows.push([g.game,g.item,g.serverName,g.qty,g.diamond.toFixed(2),ratio.toFixed(4),twd.toFixed(2),Math.round(cost)]);
   });
   const tsv=rows.map(r=>r.join('\t')).join('\n');
   navigator.clipboard.writeText(tsv).then(()=>{
